@@ -38,43 +38,50 @@ st.markdown("""
         margin-bottom: 0.5rem;
     }
 
-    /* Generate button */
-    div.stButton > button {
-        background-color: #12213D;
+    /* All buttons — generate + download */
+    div.stButton > button,
+    div.stFormSubmitButton > button {
+        background-color: #12213D !important;
         color: white !important;
-        border: none;
-        border-radius: 8px;
-        padding: 0.65rem 2.5rem;
-        font-size: 1rem;
-        font-weight: 600;
-        width: 100%;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.65rem 2.5rem !important;
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+        width: 100% !important;
         transition: background 0.2s;
     }
-    div.stButton > button:hover {
-        background-color: #1a3060;
+    div.stButton > button:hover,
+    div.stFormSubmitButton > button:hover {
+        background-color: #1a3060 !important;
         color: white !important;
     }
     div.stButton > button p,
     div.stButton > button span,
-    div.stButton > button * {
+    div.stFormSubmitButton > button p,
+    div.stFormSubmitButton > button span {
         color: white !important;
     }
 
     /* Download button */
     div.stDownloadButton > button {
-        background-color: #009A8F;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 0.65rem 2.5rem;
-        font-size: 1rem;
-        font-weight: 600;
-        width: 100%;
+        background-color: #009A8F !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.65rem 2.5rem !important;
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+        width: 100% !important;
     }
     div.stDownloadButton > button:hover {
-        background-color: #007a72;
+        background-color: #007a72 !important;
+        color: white !important;
     }
-
+    div.stDownloadButton > button p,
+    div.stDownloadButton > button span {
+        color: white !important;
+    }
     /* Divider */
     hr { border-color: #e8ecf2; margin: 1.5rem 0; }
 
