@@ -10,24 +10,6 @@ st.set_page_config(
     layout="centered",
 )
 
-# ── Password gate ───────────────────────────────────────────────
-PASSWORD = "carlsquare2024"   # ← change this to whatever you like
-
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-if not st.session_state.authenticated:
-    st.markdown("## 📊 Carlsquare Timeline Generator")
-    st.markdown("Enter the password to continue.")
-    pw = st.text_input("Password", type="password", key="pw_input")
-    if st.button("Login"):
-        if pw == PASSWORD:
-            st.session_state.authenticated = True
-            st.rerun()
-        else:
-            st.error("Incorrect password. Please try again.")
-    st.stop()
-
 # ── Import generator (must be in same folder) ──────────────────
 from timeline_slide_generator import render_timeline_slide
 
