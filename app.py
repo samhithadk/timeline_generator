@@ -52,6 +52,12 @@ st.markdown("""
     }
     div.stButton > button:hover {
         background-color: #1a3060;
+        color: white !important;
+    }
+    div.stButton > button p,
+    div.stButton > button span,
+    div.stButton > button * {
+        color: white !important;
     }
 
     /* Download button */
