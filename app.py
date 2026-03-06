@@ -72,6 +72,12 @@ st.markdown("""
     /* Divider */
     hr { border-color: #e8ecf2; margin: 1.5rem 0; }
 
+    /* Force all headings and body text to dark */
+    h1, h2, h3, h4, p, label, .stMarkdown, .stText { color: #12213D !important; }
+    /* Override any dark mode that Streamlit might inject */
+    [data-testid="stAppViewContainer"] { background-color: #f7f8fc !important; }
+    [data-testid="stHeader"] { background-color: #f7f8fc !important; }
+
     /* Hide streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
@@ -85,7 +91,7 @@ with col_logo:
     if os.path.exists(logo_path):
         st.image(logo_path, width=90)
 with col_title:
-    st.markdown("## Timeline Generator")
+    st.markdown("<h2 style='color:#12213D;margin-bottom:0'>Timeline Generator</h2>", unsafe_allow_html=True)
     st.markdown("<p style='color:#8892a4;margin-top:-0.5rem'>Generate a Carlsquare M&A process timeline slide</p>",
                 unsafe_allow_html=True)
 
