@@ -41,7 +41,7 @@ st.markdown("""
     /* Generate button */
     div.stButton > button {
         background-color: #12213D;
-        color: white;
+        color: white !important;
         border: none;
         border-radius: 8px;
         padding: 0.65rem 2.5rem;
@@ -81,6 +81,18 @@ st.markdown("""
     /* Hide streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+
+    /* Expander header — navy background, white text */
+    [data-testid="stExpander"] details summary {
+        background-color: #12213D !important;
+        border-radius: 8px;
+        color: white !important;
+    }
+    [data-testid="stExpander"] details summary p,
+    [data-testid="stExpander"] details summary svg {
+        color: white !important;
+        fill: white !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
