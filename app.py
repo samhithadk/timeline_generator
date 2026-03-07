@@ -144,7 +144,6 @@ with st.form("timeline_form"):
             label_visibility="collapsed",
         )
 
-    st.markdown(" ")
 
     # ── Row 2: Theme ──
     st.markdown("<p class='section-label'>Slide Theme</p>", unsafe_allow_html=True)
@@ -155,7 +154,6 @@ with st.form("timeline_form"):
         label_visibility="collapsed",
     )
 
-    st.markdown(" ")
 
     # ── Optional fields ──
     with st.expander("✏️  Optional: customise text"):
