@@ -158,7 +158,7 @@ with st.form("timeline_form"):
         st.markdown("<p class='section-label'>Close Date</p>", unsafe_allow_html=True)
         close_date = st.date_input(
             "Close Date",
-            value=date.today() + timedelta(weeks=34),
+            value=date.today() + timedelta(weeks=32),
             min_value=date.today(),
             label_visibility="collapsed",
         )
