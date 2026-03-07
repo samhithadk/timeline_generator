@@ -161,13 +161,13 @@ with st.form("timeline_form"):
     st.markdown("<p class='section-label'>Slide Theme</p>", unsafe_allow_html=True)
     theme_choice = st.radio(
         "Theme",
-        options=["🌙  Dark  (navy background)", "☀️  Light  (white background)"],
+        options=["Dark 🌙", "Light ☀️"],
         horizontal=True,
         label_visibility="collapsed",
     )
 
     # ── Optional fields ──
-    with st.expander("✏️  Optional: customise text"):
+    with st.expander("Optional: Customise Text"):
         st.markdown("<p class='section-label'>Subtitle Line</p>", unsafe_allow_html=True)
         subtitle = st.text_input(
             "Subtitle",
@@ -205,9 +205,9 @@ if submitted:
             )
             buf.seek(0)
 
-            st.success("✅  Your timeline is ready!")
+            st.success("Your timeline is ready! ✅")
             st.download_button(
-                label     = "⬇️  Download .pptx",
+                label     = "Download .pptx ⬇️",
                 data      = buf,
                 file_name = out_name,
                 mime      = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
