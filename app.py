@@ -170,7 +170,7 @@ with st.form("timeline_form"):
     st.markdown("<p class='section-label'>Slide Theme</p>", unsafe_allow_html=True)
     theme_choice = st.radio(
         "Theme",
-        options=["Dark 🌙", "Light ☀️"],
+        options=["🌙 Dark", "☀️ Light"],
         horizontal=True,
         label_visibility="collapsed",
     )
@@ -214,9 +214,9 @@ if submitted:
             )
             buf.seek(0)
 
-            st.success("Your timeline is ready! ✅")
+            st.success("✅ Your timeline is ready!")
             st.download_button(
-                label     = "Download .pptx ⬇️",
+                label     = "⬇️ Download .pptx",
                 data      = buf,
                 file_name = out_name,
                 mime      = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
