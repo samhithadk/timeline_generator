@@ -143,7 +143,7 @@ st.markdown("""
         <li><strong>Close Date</strong> — the expected signing/closing date of the deal. Everything else is calculated from this.</li>
         <li><strong>Standard</strong> — a full ~8 month process built from scratch: buyer list, CIM, outreach, IOI, management presentations, LOI, due diligence, and close.</li>
         <li><strong>Accelerated</strong> — a compressed process (~6 months) used when an offer is already on the table. Skips some early prep steps and moves faster to due diligence.</li>
-        <li><strong>Dark theme</strong> — navy background (matches the standard Carlsquare deck style).</li>
+        <li><strong>Dark theme</strong> — navy background.</li>
         <li><strong>Light theme</strong> — white background.</li>
     </ul>
 </div>
