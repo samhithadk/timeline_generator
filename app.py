@@ -6,7 +6,6 @@ from datetime import date, timedelta
 # ── Page config ────────────────────────────────────────────────
 st.set_page_config(
     page_title="Carlsquare Timeline Generator",
-    page_icon="📊",
     layout="centered",
 )
 
