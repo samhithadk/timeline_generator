@@ -133,8 +133,6 @@ with col_title:
     st.markdown("<p style='color:#8892a4;margin-top:-0.5rem'>Generate a Carlsquare M&A process timeline slide</p>",
                 unsafe_allow_html=True)
 
-st.markdown("---")
-
 st.markdown("""
 <div style="background:white; border-radius:12px; padding:1.2rem 1.6rem; margin-bottom:1rem; border-left:4px solid #009A8F;">
     <p style="margin:0 0 0.6rem 0; color:#12213D; font-size:0.95rem;">
@@ -150,8 +148,6 @@ st.markdown("""
     </ul>
 </div>
 """, unsafe_allow_html=True)
-
-st.markdown("---")
 
 # ── Form ────────────────────────────────────────────────────────
 with st.form("timeline_form"):
