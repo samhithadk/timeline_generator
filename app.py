@@ -123,10 +123,6 @@ st.markdown("""
 
 # ── Header ──────────────────────────────────────────────────────
 col_logo, col_title = st.columns([1, 4])
-with col_logo:
-    logo_path = os.path.join(os.path.dirname(__file__), "logo_light.png")
-    if os.path.exists(logo_path):
-        st.image(logo_path, width=90)
 with col_title:
     st.markdown("<h2 style='color:#12213D;margin-bottom:0'>Timeline Generator</h2>", unsafe_allow_html=True)
     st.markdown("<p style='color:#8892a4;margin-top:-0.5rem'>Generate a Carlsquare M&A process timeline slide</p>",
