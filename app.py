@@ -135,6 +135,24 @@ with col_title:
 
 st.markdown("---")
 
+st.markdown("""
+<div style="background:white; border-radius:12px; padding:1.2rem 1.6rem; margin-bottom:1rem; border-left:4px solid #009A8F;">
+    <p style="margin:0 0 0.6rem 0; color:#12213D; font-size:0.95rem;">
+        Fill in the options below and click <strong>Generate Timeline</strong> to download a ready-made PowerPoint slide
+        you can drop straight into any existing presentation. The output is a fully editable <strong>.pptx file</strong>.
+    </p>
+    <ul style="margin:0; padding-left:1.2rem; color:#12213D; font-size:0.9rem; line-height:1.8;">
+        <li><strong>Close Date</strong> — the expected signing/closing date of the deal. Everything else is calculated from this.</li>
+        <li><strong>Standard</strong> — a full ~8 month process built from scratch: buyer list, CIM, outreach, IOI, management presentations, LOI, due diligence, and close.</li>
+        <li><strong>Accelerated</strong> — a compressed process (~6 months) used when an offer is already on the table. Skips some early prep steps and moves faster to due diligence.</li>
+        <li><strong>Dark theme</strong> — navy background (matches the standard Carlsquare deck style).</li>
+        <li><strong>Light theme</strong> — white background.</li>
+    </ul>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("---")
+
 # ── Form ────────────────────────────────────────────────────────
 with st.form("timeline_form"):
 
