@@ -106,6 +106,19 @@ st.markdown("""
         color: white !important;
         fill: white !important;
     }
+
+    /* Input fields, dropdowns — navy background, white text */
+    [data-testid="stDateInput"] input,
+    [data-testid="stSelectbox"] > div > div {
+        background-color: #12213D !important;
+        color: white !important;
+        border-radius: 8px !important;
+        border: none !important;
+    }
+    /* Dropdown arrow icon */
+    [data-testid="stSelectbox"] svg {
+        fill: white !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -144,7 +157,6 @@ with st.form("timeline_form"):
             label_visibility="collapsed",
         )
 
-
     # ── Row 2: Theme ──
     st.markdown("<p class='section-label'>Slide Theme</p>", unsafe_allow_html=True)
     theme_choice = st.radio(
@@ -153,7 +165,6 @@ with st.form("timeline_form"):
         horizontal=True,
         label_visibility="collapsed",
     )
-
 
     # ── Optional fields ──
     with st.expander("✏️  Optional: customise text"):
