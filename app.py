@@ -72,11 +72,7 @@ st.markdown("""
     /* Hidden placeholder submit button */
     div.stFormSubmitButton > button:disabled { display: none !important; }
 
-    /* Delete (✕) buttons — force white text in all child elements */
-    button[data-testid="baseButton-secondary"] { color: white !important; }
-    button[data-testid="baseButton-secondary"] p,
-    button[data-testid="baseButton-secondary"] span,
-    button[data-testid="baseButton-secondary"] div { color: white !important; }
+
 
 
     /* Force ALL button text white — covers p, span, div inside buttons */
@@ -314,7 +310,7 @@ def render_ws_editor(process: str, close_date: date):
             r["end_date"]   = new_ed
 
         if not r["is_milestone"]:
-            if cols[4].button("✕", key=f"wsdel_{process}_{idx}", help="Remove row"):
+            if cols[4].button("✕", key=f"wsdel_{process}_{idx}", help="Remove row", type="primary"):
                 to_delete.append(idx)
         else:
             cols[4].write("")
