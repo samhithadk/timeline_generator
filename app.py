@@ -68,6 +68,11 @@ st.markdown("""
     [data-testid="stAppViewContainer"] { background-color: #f7f8fc !important; }
     [data-testid="stHeader"] { background-color: #f7f8fc !important; }
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
+
+    /* Hide the disabled placeholder form submit button */
+    div.stFormSubmitButton > button:disabled {
+        display: none !important;
+    }
     [data-testid="stExpander"] details summary {
         background-color: #12213D !important; border-radius: 8px; color: white !important;
     }
@@ -106,7 +111,8 @@ st.markdown("""
         <li><strong>Standard</strong> — full ~8 month process: buyer list, CIM, outreach, IOI, management presentations, LOI, DD, and close.</li>
         <li><strong>Accelerated</strong> — compressed (~6 months) when an offer is already on the table.</li>
         <li><strong>Dark theme</strong> — navy background. <strong>Light theme</strong> — white background.</li>
-        <li><strong>Edit Workstreams</strong> — optionally add, remove, rename rows and adjust their dates.</li>
+        <li><strong>Customise Text</strong> — override the auto-generated subtitle and the section label in the top-left corner.</li>
+        <li><strong>Edit Workstreams</strong> — toggle individual rows on/off, rename labels, adjust start/end dates, or add brand new rows to any phase. Use 'Reset to defaults' to undo all changes.</li>
     </ul>
 </div>
 """, unsafe_allow_html=True)
@@ -380,8 +386,8 @@ with st.form("timeline_form"):
             label_visibility="collapsed",
         )
 
-    # form needs at least one submit button; hidden via disabled state
-    st.form_submit_button("⚡  Generate Timeline", disabled=True)
+    # hidden placeholder — form requires a submit button but we use the one outside
+    st.form_submit_button("⚡  Generate Timeline", disabled=True, use_container_width=False)
 
 
 # ── Workstream editor (outside the form so widgets are interactive)
