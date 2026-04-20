@@ -90,6 +90,9 @@ st.markdown("""
         margin: 0.8rem 0 0.4rem 0;
     }
     .ws-help { font-size: 0.78rem; color: #8892a4; margin-bottom: 0.6rem; font-style: italic; }
+    /* Delete row buttons — red background, white text */
+    div.stButton > button[kind="secondary"] { background-color: #c0392b !important; }
+    div.stButton > button p, div.stButton > button span { color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -152,10 +155,32 @@ def ws_state_key(process: str) -> str:
     return f"ws_rows_{process}"
 
 
+def strip_subnumber(label: str) -> str:
+    """Remove leading 'a. ', 'b. ' etc from a label so we can re-add it automatically."""
+    import re
+    return re.sub(r'^[a-zA-Z]\.\s+', '', label.strip())
+
+
+def apply_subnumbers(rows: list):
+    """Re-apply a. b. c. prefixes to non-milestone rows within each phase, in order."""
+    import string
+    phase_counters = {}
+    for r in rows:
+        if r['is_milestone']:
+            continue
+        pid = r['phase_id']
+        phase_counters[pid] = phase_counters.get(pid, 0) + 1
+        letter = string.ascii_lowercase[phase_counters[pid] - 1]
+        base = strip_subnumber(r['label'])
+        r['label'] = f"{letter}. {base}"
+
+
 def ensure_ws_state(process: str, close_date: date):
     key = ws_state_key(process)
     if key not in st.session_state:
-        st.session_state[key] = build_ws_state_from_template(process, close_date)
+        rows = build_ws_state_from_template(process, close_date)
+        apply_subnumbers(rows)
+        st.session_state[key] = rows
 
 
 def recalc_from_offsets(rows: list, close_date: date):
@@ -289,6 +314,7 @@ def render_ws_editor(process: str, close_date: date):
     for idx in sorted(to_delete, reverse=True):
         st.session_state[key].pop(idx)
     if to_delete:
+        apply_subnumbers(st.session_state[key])
         st.rerun()
 
     # ── Add new row ─────────────────────────────────────────────
@@ -329,6 +355,7 @@ def render_ws_editor(process: str, close_date: date):
                 "end_offset_weeks":   None,
                 "is_custom":          True,
             })
+            apply_subnumbers(st.session_state[key])
             st.rerun()
         else:
             st.warning("Please enter a label before adding.")
@@ -336,7 +363,9 @@ def render_ws_editor(process: str, close_date: date):
     # ── Reset ────────────────────────────────────────────────────
     st.markdown("")
     if st.button("↺ Reset workstreams to defaults", key=f"wsreset_{process}"):
-        st.session_state[key] = build_ws_state_from_template(process, close_date)
+        rows = build_ws_state_from_template(process, close_date)
+        apply_subnumbers(rows)
+        st.session_state[key] = rows
         st.rerun()
 
 
@@ -407,6 +436,7 @@ if submitted:
     out_name = f"Carlsquare_Timeline_{process.title()}_{theme.title()}_{close_date.strftime('%Y-%m-%d')}.pptx"
 
     ws_key      = ws_state_key(process)
+    apply_subnumbers(st.session_state[ws_key])   # ensure letters are current before render
     custom_tmpl = rows_to_custom_template(st.session_state[ws_key], process)
 
     with st.spinner("Building your timeline slide…"):
