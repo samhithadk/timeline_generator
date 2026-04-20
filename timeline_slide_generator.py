@@ -383,11 +383,17 @@ def compute_schedule(close_date: date,
                     milestone_key=r["milestone_key"],
                 ))
             else:
+                # Support direct date overrides from the workstream editor
+                if r.get("start_date_override") is not None:
+                    start = r["start_date_override"]
+                    end   = r["end_date_override"]
+                else:
+                    start = close_date + timedelta(days=int(r["start_offset_weeks"]) * 7)
+                    end   = close_date + timedelta(days=int(r["end_offset_weeks"])   * 7)
                 rows.append(DisplayRow(
                     kind="task", phase_label=phase["phase_label"],
                     row_id=r["row_id"], label=r["label"],
-                    start=close_date + timedelta(days=int(r["start_offset_weeks"]) * 7),
-                    end  =close_date + timedelta(days=int(r["end_offset_weeks"])   * 7),
+                    start=start, end=end,
                 ))
     return rows, milestone_dates
 
@@ -448,17 +454,19 @@ def dashed_vline(slide, x, y0, y1, color: RGBColor, dash=0.10, gap=0.07):
 # Main render
 # ─────────────────────────────
 def render_timeline_slide(
-    close_date:  date,
-    process:     str,
-    theme_name:  str,
-    out_path:    str,
-    subtitle:    str = "",
-    top_label:   str = "[Insert section label here]",
+    close_date:      date,
+    process:         str,
+    theme_name:      str,
+    out_path:        str,
+    subtitle:        str = "",
+    top_label:       str = "[Insert section label here]",
+    custom_template: Dict = None,
 ):
     if process    not in TEMPLATES: raise ValueError(f"Unknown process: {process}")
     if theme_name not in THEMES:    raise ValueError(f"Unknown theme: {theme_name}")
 
-    tmpl  = TEMPLATES[process]
+    # Use custom_template when provided (from workstream editor), else use defaults
+    tmpl  = custom_template if custom_template is not None else TEMPLATES[process]
     theme = THEMES[theme_name]
 
     rows, milestone_dates = compute_schedule(close_date, tmpl)
