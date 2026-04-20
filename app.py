@@ -69,9 +69,19 @@ st.markdown("""
     [data-testid="stHeader"] { background-color: #f7f8fc !important; }
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
 
-    /* Hide the disabled placeholder form submit button */
-    div.stFormSubmitButton > button:disabled {
-        display: none !important;
+    /* Hidden placeholder submit button */
+    div.stFormSubmitButton > button:disabled { display: none !important; }
+
+    /* Delete (✕) buttons — force white text in all child elements */
+    button[data-testid="baseButton-secondary"] { color: white !important; }
+    button[data-testid="baseButton-secondary"] p,
+    button[data-testid="baseButton-secondary"] span,
+    button[data-testid="baseButton-secondary"] div { color: white !important; }
+
+
+    /* Force ALL button text white — covers p, span, div inside buttons */
+    div.stButton > button *, div.stButton > button {
+        color: white !important;
     }
     [data-testid="stExpander"] details summary {
         background-color: #12213D !important; border-radius: 8px; color: white !important;
@@ -90,9 +100,7 @@ st.markdown("""
         margin: 0.8rem 0 0.4rem 0;
     }
     .ws-help { font-size: 0.78rem; color: #8892a4; margin-bottom: 0.6rem; font-style: italic; }
-    /* Delete row buttons — red background, white text */
-    div.stButton > button[kind="secondary"] { background-color: #c0392b !important; }
-    div.stButton > button p, div.stButton > button span { color: white !important; }
+
 </style>
 """, unsafe_allow_html=True)
 
