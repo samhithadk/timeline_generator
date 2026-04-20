@@ -106,7 +106,7 @@ st.markdown("""
         <li><strong>Standard</strong> — full ~8 month process: buyer list, CIM, outreach, IOI, management presentations, LOI, DD, and close.</li>
         <li><strong>Accelerated</strong> — compressed (~6 months) when an offer is already on the table.</li>
         <li><strong>Dark theme</strong> — navy background. <strong>Light theme</strong> — white background.</li>
-        <li><strong>✏️ Edit Workstreams</strong> — optionally add, remove, rename rows and adjust their dates.</li>
+        <li><strong>Edit Workstreams</strong> — optionally add, remove, rename rows and adjust their dates.</li>
     </ul>
 </div>
 """, unsafe_allow_html=True)
@@ -365,7 +365,7 @@ with st.form("timeline_form"):
         label_visibility="collapsed",
     )
 
-    with st.expander("Optional: Customise Text"):
+    with st.expander("Customise Text (optional)"):
         st.markdown("<p class='section-label'>Subtitle Line</p>", unsafe_allow_html=True)
         subtitle = st.text_input(
             "Subtitle",
@@ -380,17 +380,19 @@ with st.form("timeline_form"):
             label_visibility="collapsed",
         )
 
-    st.markdown(" ")
-    submitted = st.form_submit_button("⚡  Generate Timeline")
+    # form needs at least one submit button; hidden via disabled state
+    st.form_submit_button("⚡  Generate Timeline", disabled=True)
 
 
 # ── Workstream editor (outside the form so widgets are interactive)
 process_key = process_type.lower()
 ensure_ws_state(process_key, close_date)
 
-with st.expander("✏️ Edit Workstreams (optional)"):
+with st.expander("Edit Workstreams (optional)"):
     render_ws_editor(process_key, close_date)
 
+st.markdown(" ")
+submitted = st.button("⚡  Generate Timeline", key="generate_btn", use_container_width=True)
 
 # ── Generate ────────────────────────────────────────────────────
 if submitted:
