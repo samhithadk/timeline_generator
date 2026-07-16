@@ -69,8 +69,6 @@ st.markdown("""
     [data-testid="stHeader"] { background-color: #f7f8fc !important; }
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
 
-    /* Hidden placeholder submit button */
-    div.stFormSubmitButton > button:disabled { display: none !important; }
 
 
 
@@ -374,53 +372,48 @@ def render_ws_editor(process: str, close_date: date):
 
 
 # ══════════════════════════════════════════════════════════════════
-# Main form
+# Main inputs
 # ══════════════════════════════════════════════════════════════════
-with st.form("timeline_form"):
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("<p class='section-label'>Close Date</p>", unsafe_allow_html=True)
-        close_date = st.date_input(
-            "Close Date",
-            value=date.today() + timedelta(weeks=32),
-            min_value=date.today(),
-            label_visibility="collapsed",
-        )
-    with col2:
-        st.markdown("<p class='section-label'>Process Type</p>", unsafe_allow_html=True)
-        process_type = st.selectbox(
-            "Process Type",
-            options=["Standard", "Accelerated"],
-            help="Standard: ~8 month process.  Accelerated: ~6 month process.",
-            label_visibility="collapsed",
-        )
-
-    st.markdown("<p class='section-label'>Slide Theme</p>", unsafe_allow_html=True)
-    theme_choice = st.radio(
-        "Theme",
-        options=["🌙 Dark", "☀️ Light"],
-        horizontal=True,
+col1, col2 = st.columns(2)
+with col1:
+    st.markdown("<p class='section-label'>Close Date</p>", unsafe_allow_html=True)
+    close_date = st.date_input(
+        "Close Date",
+        value=date.today() + timedelta(weeks=32),
+        min_value=date.today(),
+        label_visibility="collapsed",
+    )
+with col2:
+    st.markdown("<p class='section-label'>Process Type</p>", unsafe_allow_html=True)
+    process_type = st.selectbox(
+        "Process Type",
+        options=["Standard", "Accelerated"],
+        help="Standard: ~8 month process.  Accelerated: ~6 month process.",
         label_visibility="collapsed",
     )
 
-    with st.expander("Customise Text (optional)"):
-        st.markdown("<p class='section-label'>Subtitle Line</p>", unsafe_allow_html=True)
-        subtitle = st.text_input(
-            "Subtitle",
-            placeholder='e.g. "Begin process April 1st, launch to market early June, expected close in November"',
-            label_visibility="collapsed",
-        )
-        st.markdown("<p class='section-label' style='margin-top:1rem'>Section Label (top-left)</p>",
-                    unsafe_allow_html=True)
-        top_label = st.text_input(
-            "Top label",
-            value="3 | Process design and investor discussion",
-            label_visibility="collapsed",
-        )
+st.markdown("<p class='section-label'>Slide Theme</p>", unsafe_allow_html=True)
+theme_choice = st.radio(
+    "Theme",
+    options=["🌙 Dark", "☀️ Light"],
+    horizontal=True,
+    label_visibility="collapsed",
+)
 
-    # hidden placeholder — form requires a submit button but we use the one outside
-    st.form_submit_button("⚡  Generate Timeline", disabled=True, use_container_width=False)
+with st.expander("Customise Text (optional)"):
+    st.markdown("<p class='section-label'>Subtitle Line</p>", unsafe_allow_html=True)
+    subtitle = st.text_input(
+        "Subtitle",
+        placeholder='e.g. "Begin process April 1st, launch to market early June, expected close in November"',
+        label_visibility="collapsed",
+    )
+    st.markdown("<p class='section-label' style='margin-top:1rem'>Section Label (top-left)</p>",
+                unsafe_allow_html=True)
+    top_label = st.text_input(
+        "Top label",
+        value="3 | Process design and investor discussion",
+        label_visibility="collapsed",
+    )
 
 
 # ── Workstream editor (outside the form so widgets are interactive)
