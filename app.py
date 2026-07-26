@@ -1,6 +1,7 @@
 import streamlit as st
 import io
 import os
+import base64
 from datetime import date, timedelta
 
 # ── Page config ────────────────────────────────────────────────
@@ -28,7 +29,9 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ── Import generator ──────────────────────────────────────────
-from timeline_slide_generator import render_timeline_slide, TEMPLATES, compute_schedule
+from timeline_slide_generator import (
+    render_timeline_slide, render_timeline_svg, TEMPLATES, compute_schedule
+)
 
 # ── Styles ─────────────────────────────────────────────────────
 st.markdown("""
@@ -88,6 +91,39 @@ st.markdown("""
         border-radius: 8px !important; border: none !important;
     }
     [data-testid="stSelectbox"] svg { fill: white !important; }
+
+    /* Selectbox CLOSED state — force white text on every inner node
+       (Process Type, Add to phase). Overrides the global dark-text rule. */
+    [data-testid="stSelectbox"] div[data-baseweb="select"],
+    [data-testid="stSelectbox"] div[data-baseweb="select"] * {
+        color: white !important;
+        -webkit-text-fill-color: white !important;
+    }
+
+    /* Selectbox OPEN dropdown menu — rendered in a portal by BaseWeb */
+    div[data-baseweb="popover"] ul,
+    div[data-baseweb="popover"] div[role="listbox"] {
+        background-color: #12213D !important;
+    }
+    div[data-baseweb="popover"] li,
+    div[data-baseweb="popover"] [role="option"],
+    div[data-baseweb="popover"] li *,
+    div[data-baseweb="popover"] [role="option"] * {
+        background-color: #12213D !important;
+        color: white !important;
+        -webkit-text-fill-color: white !important;
+    }
+    div[data-baseweb="popover"] li:hover,
+    div[data-baseweb="popover"] [role="option"]:hover,
+    div[data-baseweb="popover"] li[aria-selected="true"],
+    div[data-baseweb="popover"] [role="option"][aria-selected="true"] {
+        background-color: #1a3060 !important;
+    }
+    div[data-baseweb="popover"] li:hover *,
+    div[data-baseweb="popover"] [role="option"]:hover * {
+        background-color: transparent !important;
+        color: white !important;
+    }
     .ws-phase-header {
         background: #12213D; color: white !important; font-size: 0.8rem;
         font-weight: 700; padding: 0.4rem 0.8rem; border-radius: 6px;
@@ -118,6 +154,7 @@ st.markdown("""
         <li><strong>Dark theme</strong> — navy background. <strong>Light theme</strong> — white background.</li>
         <li><strong>Customise Text</strong> — override the auto-generated subtitle and the section label in the top-left corner.</li>
         <li><strong>Edit Workstreams</strong> — toggle individual rows on/off, rename labels, adjust start/end dates, or add brand new rows to any phase. Use 'Reset to defaults' to undo all changes.</li>
+        <li><strong>Live Preview</strong> — the slide preview near the bottom updates automatically as you change dates, themes, or workstreams, so you can see the timeline take shape before downloading.</li>
     </ul>
 </div>
 """, unsafe_allow_html=True)
@@ -164,16 +201,26 @@ def strip_subnumber(label: str) -> str:
 
 
 def apply_subnumbers(rows: list):
-    """Re-apply a. b. c. prefixes to non-milestone rows within each phase, in order."""
+    """
+    Re-apply a. b. c. prefixes within each phase, in order.
+
+    Only rows that are actually INCLUDED get a letter, so the lettering in the
+    editor always matches the lettering on the generated slide (no gaps when a
+    row is toggled off). Excluded rows show their bare label until re-enabled.
+    """
     import string
     phase_counters = {}
     for r in rows:
         if r['is_milestone']:
             continue
+        base = strip_subnumber(r['label'])
+        if not r.get('include', True):
+            r['label'] = base          # no letter while switched off
+            continue
         pid = r['phase_id']
         phase_counters[pid] = phase_counters.get(pid, 0) + 1
-        letter = string.ascii_lowercase[phase_counters[pid] - 1]
-        base = strip_subnumber(r['label'])
+        idx = phase_counters[pid] - 1
+        letter = string.ascii_lowercase[idx] if idx < 26 else f"({idx + 1})"
         r['label'] = f"{letter}. {base}"
 
 
@@ -242,12 +289,55 @@ def rows_to_custom_template(rows: list, process: str) -> dict:
 
 
 # ── Workstream editor UI ────────────────────────────────────────
+def purge_ws_widget_keys(process: str, row_ids=None):
+    """
+    Drop cached widget state for workstream rows.
+
+    Streamlit keeps keyed-widget values in session_state forever. Without this,
+    deleting a row and then resetting would resurrect the deleted row's old
+    label/toggle instead of the template default.
+    """
+    prefixes = ("wsinc_", "wslbl_", "wssd_", "wsed_", "wsdel_")
+    for k in list(st.session_state.keys()):
+        if not k.startswith(prefixes):
+            continue
+        if not k.split("_", 1)[1].startswith(f"{process}_"):
+            continue
+        if row_ids is None:
+            del st.session_state[k]
+        else:
+            for rid in row_ids:
+                if k.endswith(f"_{process}_{rid}"):
+                    del st.session_state[k]
+                    break
+
+
 def render_ws_editor(process: str, close_date: date):
     key  = ws_state_key(process)
     rows = st.session_state[key]
 
     # Re-sync dates from offsets if close date has changed
     recalc_from_offsets(rows, close_date)
+
+    # ── Sync widget state -> rows, renumber, then push labels back ──
+    # Widget keys are row_id based (stable across inserts/deletes). Streamlit
+    # ignores the `value=` arg once a keyed widget exists, so the canonical
+    # label has to be written back into session_state BEFORE the widget is
+    # drawn — otherwise re-lettering would never appear in the text boxes.
+    for r in rows:
+        ck = f"wsinc_{process}_{r['row_id']}"
+        if ck in st.session_state:
+            r["include"] = st.session_state[ck]
+        lk = f"wslbl_{process}_{r['row_id']}"
+        if lk in st.session_state:
+            r["label"] = st.session_state[lk]
+
+    apply_subnumbers(rows)
+
+    for r in rows:
+        lk = f"wslbl_{process}_{r['row_id']}"
+        if lk in st.session_state and st.session_state[lk] != r["label"]:
+            st.session_state[lk] = r["label"]
 
     st.markdown(
         "<p class='ws-help'>Toggle rows on/off, rename labels, or adjust start/end dates. "
@@ -275,14 +365,16 @@ def render_ws_editor(process: str, close_date: date):
 
         cols = st.columns([0.45, 3.3, 1.9, 1.9, 0.55])
 
+        rid = r["row_id"]
+
         r["include"] = cols[0].checkbox(
             "on", value=r["include"],
-            key=f"wsinc_{process}_{idx}",
+            key=f"wsinc_{process}_{rid}",
             label_visibility="collapsed",
         )
         r["label"] = cols[1].text_input(
             "lbl", value=r["label"],
-            key=f"wslbl_{process}_{idx}",
+            key=f"wslbl_{process}_{rid}",
             label_visibility="collapsed",
             disabled=r["is_milestone"],
         )
@@ -294,12 +386,12 @@ def render_ws_editor(process: str, close_date: date):
             prev_sd, prev_ed = r["start_date"], r["end_date"]
             new_sd = cols[2].date_input(
                 "sd", value=r["start_date"],
-                key=f"wssd_{process}_{idx}",
+                key=f"wssd_{process}_{rid}",
                 label_visibility="collapsed",
             )
             new_ed = cols[3].date_input(
                 "ed", value=r["end_date"],
-                key=f"wsed_{process}_{idx}",
+                key=f"wsed_{process}_{rid}",
                 label_visibility="collapsed",
             )
             if new_sd != prev_sd or new_ed != prev_ed:
@@ -308,14 +400,16 @@ def render_ws_editor(process: str, close_date: date):
             r["end_date"]   = new_ed
 
         if not r["is_milestone"]:
-            if cols[4].button("✕", key=f"wsdel_{process}_{idx}", help="Remove row", type="primary"):
+            if cols[4].button("✕", key=f"wsdel_{process}_{rid}", help="Remove row", type="primary"):
                 to_delete.append(idx)
         else:
             cols[4].write("")
 
-    for idx in sorted(to_delete, reverse=True):
-        st.session_state[key].pop(idx)
     if to_delete:
+        removed_ids = [rows[i]["row_id"] for i in to_delete]
+        for idx in sorted(to_delete, reverse=True):
+            st.session_state[key].pop(idx)
+        purge_ws_widget_keys(process, removed_ids)
         apply_subnumbers(st.session_state[key])
         st.rerun()
 
@@ -365,9 +459,10 @@ def render_ws_editor(process: str, close_date: date):
     # ── Reset ────────────────────────────────────────────────────
     st.markdown("")
     if st.button("↺ Reset workstreams to defaults", key=f"wsreset_{process}"):
-        rows = build_ws_state_from_template(process, close_date)
-        apply_subnumbers(rows)
-        st.session_state[key] = rows
+        purge_ws_widget_keys(process)
+        fresh = build_ws_state_from_template(process, close_date)
+        apply_subnumbers(fresh)
+        st.session_state[key] = fresh
         st.rerun()
 
 
@@ -422,6 +517,45 @@ ensure_ws_state(process_key, close_date)
 
 with st.expander("Edit Workstreams (optional)"):
     render_ws_editor(process_key, close_date)
+
+
+# ── Live preview ────────────────────────────────────────────────
+theme_now = "dark" if "Dark" in theme_choice else "light"
+
+st.markdown("<p class='section-label' style='margin-top:1.2rem'>Live Preview</p>",
+            unsafe_allow_html=True)
+show_preview = st.checkbox(
+    "Update preview as I make changes", value=True, key="show_preview",
+    help="Uncheck if the app feels slow on very large timelines.",
+)
+
+if show_preview:
+    try:
+        apply_subnumbers(st.session_state[ws_state_key(process_key)])
+        preview_tmpl = rows_to_custom_template(
+            st.session_state[ws_state_key(process_key)], process_key
+        )
+        svg = render_timeline_svg(
+            close_date      = close_date,
+            process         = process_key,
+            theme_name      = theme_now,
+            subtitle        = subtitle.strip(),
+            top_label       = top_label.strip() or "[Insert section label here]",
+            custom_template = preview_tmpl,
+        )
+        svg_b64 = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+        st.markdown(
+            f"<img src='data:image/svg+xml;base64,{svg_b64}' "
+            f"style='width:100%;border-radius:10px;"
+            f"box-shadow:0 2px 14px rgba(0,0,0,0.15);margin-top:0.3rem'/>",
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "Preview approximates the final slide. Long labels are shortened here "
+            "but wrap normally in the downloaded .pptx."
+        )
+    except Exception as e:
+        st.warning(f"Preview unavailable: {e}")
 
 st.markdown(" ")
 submitted = st.button("⚡  Generate Timeline", key="generate_btn", use_container_width=True)
