@@ -756,3 +756,315 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ─────────────────────────────
+# SVG preview renderer
+# Mirrors render_timeline_slide() geometry exactly, but outputs an inline SVG
+# string so the app can show a live preview without generating a .pptx.
+# ─────────────────────────────
+def _hex(c: RGBColor) -> str:
+    """RGBColor -> '#rrggbb'"""
+    return "#" + str(c)
+
+
+def _esc(t: str) -> str:
+    """Escape text for XML."""
+    return (str(t).replace("&", "&amp;")
+                  .replace("<", "&lt;")
+                  .replace(">", "&gt;"))
+
+
+def _truncate(text: str, max_w_px: float, font_px: float) -> str:
+    """Rough single-line truncation with ellipsis (SVG has no text wrapping)."""
+    avg_char_w = font_px * 0.52
+    max_chars  = max(1, int(max_w_px / avg_char_w))
+    if len(text) <= max_chars:
+        return text
+    return text[:max(1, max_chars - 1)].rstrip() + "…"
+
+
+def render_timeline_svg(
+    close_date:      date,
+    process:         str,
+    theme_name:      str,
+    subtitle:        str = "",
+    top_label:       str = "[Insert section label here]",
+    custom_template: Dict = None,
+    px_per_inch:     float = 96.0,
+) -> str:
+    """Return an inline SVG string previewing the timeline slide."""
+    if process    not in TEMPLATES: raise ValueError(f"Unknown process: {process}")
+    if theme_name not in THEMES:    raise ValueError(f"Unknown theme: {theme_name}")
+
+    tmpl  = custom_template if custom_template is not None else TEMPLATES[process]
+    theme = THEMES[theme_name]
+
+    rows, milestone_dates = compute_schedule(close_date, tmpl)
+
+    milestone_row_map = {}
+    for r in rows:
+        if r.kind == "milestone" and r.milestone_key:
+            milestone_row_map[r.milestone_key] = r.row_id
+
+    all_dates = (
+        [r.start for r in rows if r.start] +
+        [r.end   for r in rows if r.end]   +
+        list(milestone_dates.values())
+    )
+    if not all_dates:
+        return "<svg xmlns='http://www.w3.org/2000/svg'></svg>"
+
+    axis_start = first_day_of_month(min(all_dates))
+    axis_end   = last_day_of_month(max(all_dates))
+    months     = month_range(axis_start, axis_end)
+    total_days = (axis_end - axis_start).days + 1
+
+    SW, SH = 10.0, 7.5
+    P = px_per_inch                      # inches -> px
+    def pt(size): return size * 96.0 / 72.0   # points -> px
+
+    # ── Same layout constants as the pptx renderer ──
+    M_left   = 0.28
+    M_right  = 0.18
+    Left_w   = 3.10
+    Footer_y = 7.12
+    Footer_h = 0.28
+
+    TopLabel_y   = 0.15
+    TopLabel_h   = 0.22
+    Title_y      = TopLabel_y + TopLabel_h + 0.04
+    Subtitle_y   = Title_y + 0.46
+    MonthRow_y   = Subtitle_y + 0.36
+    MonthRow_h   = 0.36
+    Chart_bottom = Footer_y - 0.06
+
+    Grid_x0 = M_left + Left_w
+    Grid_x1 = SW - M_right
+    Grid_w  = Grid_x1 - Grid_x0
+    Grid_y0 = MonthRow_y + MonthRow_h
+    Grid_y1 = Chart_bottom
+
+    def x_of(d: date) -> float:
+        return Grid_x0 + (d - axis_start).days / total_days * Grid_w
+
+    FONT = "Roboto, Helvetica, Arial, sans-serif"
+    s: List[str] = []
+
+    s.append(
+        f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {SW*P:.0f} {SH*P:.0f}' "
+        f"width='100%' style='display:block;border-radius:8px;"
+        f"box-shadow:0 2px 12px rgba(0,0,0,0.18);font-family:{FONT}'>"
+    )
+
+    # Background
+    s.append(f"<rect x='0' y='0' width='{SW*P:.1f}' height='{SH*P:.1f}' fill='{_hex(theme['bg'])}'/>")
+
+    # ── Top label ──
+    s.append(
+        f"<text x='{M_left*P:.1f}' y='{(TopLabel_y+0.15)*P:.1f}' "
+        f"font-size='{pt(8):.1f}' fill='{_hex(theme['top_bar'])}'>{_esc(top_label)}</text>"
+    )
+
+    # ── Title ──
+    s.append(
+        f"<text x='{M_left*P:.1f}' y='{(Title_y+0.30)*P:.1f}' "
+        f"font-size='{pt(20):.1f}' font-weight='700' fill='{_hex(theme['text'])}'>"
+        f"Timeline optimized for successful outcome</text>"
+    )
+
+    # ── Subtitle ──
+    launch = milestone_dates["launch_to_market"]
+    sub = subtitle or (
+        f"Launch to market {launch.strftime('%b %d, %Y')}  •  "
+        f"Expected close {close_date.strftime('%b %d, %Y')}"
+    )
+    s.append(
+        f"<text x='{M_left*P:.1f}' y='{(Subtitle_y+0.20)*P:.1f}' "
+        f"font-size='{pt(10):.1f}' font-weight='700' fill='{_hex(theme['text'])}'>{_esc(sub)}</text>"
+    )
+
+    # ── Month header strip ──
+    div_col = RGBColor(
+        min(theme["month_strip"][0] + 40, 255),
+        min(theme["month_strip"][1] + 40, 255),
+        min(theme["month_strip"][2] + 40, 255),
+    )
+    for i, (m_start, m_end, m_label) in enumerate(months):
+        x0     = x_of(m_start)
+        x1     = x_of(m_end + timedelta(days=1))
+        cell_w = x1 - x0
+
+        s.append(
+            f"<rect x='{x0*P:.1f}' y='{MonthRow_y*P:.1f}' width='{cell_w*P:.1f}' "
+            f"height='{MonthRow_h*P:.1f}' fill='{_hex(theme['month_strip'])}'/>"
+        )
+        if i < len(months) - 1:
+            s.append(
+                f"<rect x='{(x1-0.005)*P:.1f}' y='{MonthRow_y*P:.1f}' width='{0.010*P:.1f}' "
+                f"height='{MonthRow_h*P:.1f}' fill='{_hex(div_col)}'/>"
+            )
+        s.append(
+            f"<text x='{(x0+cell_w/2)*P:.1f}' y='{(MonthRow_y+MonthRow_h/2)*P:.1f}' "
+            f"font-size='{pt(9.5):.1f}' font-weight='700' fill='{_hex(theme['month_text'])}' "
+            f"text-anchor='middle' dominant-baseline='central'>{_esc(m_label)}</text>"
+        )
+        # month gridline down the chart
+        s.append(
+            f"<rect x='{x0*P:.1f}' y='{Grid_y0*P:.1f}' width='{0.009*P:.1f}' "
+            f"height='{(Grid_y1-Grid_y0)*P:.1f}' fill='{_hex(theme['grid'])}'/>"
+        )
+
+    # ── Row geometry (identical scaling logic) ──
+    n_phase = sum(1 for r in rows if r.kind == "phase")
+    n_task  = sum(1 for r in rows if r.kind in ("task", "milestone"))
+    avail_h = Grid_y1 - Grid_y0
+    base_content = n_phase * 0.33 + n_task * 0.265
+    fill_scale   = min(avail_h / base_content, 1.45) if base_content else 1.0
+    H_phase = 0.33  * fill_scale
+    H_task  = 0.265 * fill_scale
+    content_h = n_phase * H_phase + n_task * H_task
+    if content_h > avail_h:
+        sc = avail_h / content_h
+        H_phase *= sc
+        H_task  *= sc
+
+    row_y_mid: Dict[str, float] = {}
+    y = Grid_y0
+    for r in rows:
+        h     = H_phase if r.kind == "phase" else H_task
+        y_mid = y + h / 2
+
+        if r.kind == "phase":
+            s.append(
+                f"<rect x='{M_left*P:.1f}' y='{y*P:.1f}' width='{Left_w*P:.1f}' "
+                f"height='{h*P:.1f}' fill='{_hex(theme['phase_fill'])}'/>"
+            )
+            s.append(
+                f"<rect x='{Grid_x0*P:.1f}' y='{y*P:.1f}' width='{Grid_w*P:.1f}' "
+                f"height='{h*P:.1f}' fill='{_hex(theme['phase_fill'])}'/>"
+            )
+            fpx = pt(8.5)
+            s.append(
+                f"<text x='{(M_left+0.07)*P:.1f}' y='{y_mid*P:.1f}' font-size='{fpx:.1f}' "
+                f"font-weight='700' fill='{_hex(theme['text'])}' dominant-baseline='central'>"
+                f"{_esc(_truncate(r.label, (Left_w-0.10)*P, fpx))}</text>"
+            )
+        else:
+            fpx = pt(7.5)
+            s.append(
+                f"<text x='{(M_left+0.09)*P:.1f}' y='{y_mid*P:.1f}' font-size='{fpx:.1f}' "
+                f"fill='{_hex(theme['text'])}' dominant-baseline='central'>"
+                f"{_esc(_truncate(r.label, (Left_w-0.16)*P, fpx))}</text>"
+            )
+            s.append(
+                f"<rect x='{M_left*P:.1f}' y='{(y+h)*P:.1f}' width='{(Left_w+Grid_w)*P:.1f}' "
+                f"height='{0.007*P:.1f}' fill='{_hex(theme['grid'])}'/>"
+            )
+            if r.row_id:
+                row_y_mid[r.row_id] = y_mid
+        y += h
+
+    # ── Outer grid + label column borders ──
+    gcol = _hex(theme["grid"])
+    s.append(
+        f"<rect x='{Grid_x0*P:.1f}' y='{Grid_y0*P:.1f}' width='{Grid_w*P:.1f}' "
+        f"height='{(Grid_y1-Grid_y0)*P:.1f}' fill='none' stroke='{gcol}' stroke-width='1'/>"
+    )
+    s.append(
+        f"<rect x='{M_left*P:.1f}' y='{Grid_y0*P:.1f}' width='{Left_w*P:.1f}' "
+        f"height='{(Grid_y1-Grid_y0)*P:.1f}' fill='none' stroke='{gcol}' stroke-width='1'/>"
+    )
+
+    # ── Task bars ──
+    for r in rows:
+        if r.kind != "task" or not r.start or not r.row_id:
+            continue
+        ym = row_y_mid.get(r.row_id)
+        if ym is None:
+            continue
+        bh = H_task * 0.50
+        x0 = x_of(r.start)
+        w  = max(0.035, x_of(r.end + timedelta(days=1)) - x0)
+        s.append(
+            f"<rect x='{x0*P:.1f}' y='{(ym-bh/2)*P:.1f}' width='{w*P:.1f}' height='{bh*P:.1f}' "
+            f"rx='{min(bh*P/2, 4):.1f}' fill='{_hex(theme['bar'])}'/>"
+        )
+
+    # ── Launch dashed line + label ──
+    x_launch = x_of(milestone_dates["launch_to_market"])
+    lcol = _hex(theme["launch_line"])
+    s.append(
+        f"<line x1='{x_launch*P:.1f}' y1='{Grid_y0*P:.1f}' x2='{x_launch*P:.1f}' "
+        f"y2='{Grid_y1*P:.1f}' stroke='{lcol}' stroke-width='1.4' stroke-dasharray='7,5'/>"
+    )
+    s.append(
+        f"<text x='{(x_launch+0.05)*P:.1f}' y='{(Grid_y0+0.16)*P:.1f}' font-size='{pt(7):.1f}' "
+        f"font-weight='700' font-style='italic' fill='{lcol}'>Launch to market</text>"
+    )
+    s.append(
+        f"<text x='{(x_launch+0.05)*P:.1f}' y='{(Grid_y0+0.29)*P:.1f}' font-size='{pt(7):.1f}' "
+        f"font-weight='700' font-style='italic' fill='{lcol}'>"
+        f"{milestone_dates['launch_to_market'].strftime('%m/%d/%Y')}</text>"
+    )
+
+    # ── Milestone triangles ──
+    for key in ["ioi_due", "loi_due", "close"]:
+        if key not in milestone_dates:
+            continue
+        d   = milestone_dates[key]
+        xm  = x_of(d)
+        rid = milestone_row_map.get(key)
+        ym  = row_y_mid.get(rid, Grid_y0 + 0.5) if rid else Grid_y0 + 0.5
+        tw, th = 0.14, 0.12
+        ty  = ym - th - 0.03
+        pts = (f"{xm*P:.1f},{ty*P:.1f} "
+               f"{(xm-tw/2)*P:.1f},{(ty+th)*P:.1f} "
+               f"{(xm+tw/2)*P:.1f},{(ty+th)*P:.1f}")
+        s.append(f"<polygon points='{pts}' fill='{_hex(theme['milestone'])}'/>")
+        s.append(
+            f"<text x='{xm*P:.1f}' y='{(ym+0.08)*P:.1f}' font-size='{pt(7):.1f}' "
+            f"font-weight='700' fill='{_hex(theme['muted_text'])}' text-anchor='middle'>"
+            f"{d.strftime('%m/%d/%Y')}</text>"
+        )
+
+    # ── Footer ──
+    fcol = _hex(theme["footer_text"])
+    footer_text_x = M_left
+
+    # Embed the logo as base64 so the preview matches the slide
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    logo_path  = os.path.join(script_dir, theme["logo_file"])
+    if not os.path.exists(logo_path):
+        alt = "logo_light.png" if theme["logo_file"] == "logo_dark.png" else "logo_dark.png"
+        logo_path = os.path.join(script_dir, alt)
+    if os.path.exists(logo_path):
+        try:
+            import base64
+            from PIL import Image as PILImage
+            with PILImage.open(logo_path) as img:
+                iw, ih = img.size
+            logo_h = 0.20
+            logo_w = logo_h * (iw / ih)
+            with open(logo_path, "rb") as fh:
+                b64 = base64.b64encode(fh.read()).decode()
+            s.append(
+                f"<image x='{M_left*P:.1f}' y='{(Footer_y+(Footer_h-logo_h)/2)*P:.1f}' "
+                f"width='{logo_w*P:.1f}' height='{logo_h*P:.1f}' "
+                f"href='data:image/png;base64,{b64}'/>"
+            )
+            footer_text_x = M_left + logo_w + 0.10
+        except Exception:
+            pass
+
+    s.append(
+        f"<text x='{footer_text_x*P:.1f}' y='{(Footer_y+0.17)*P:.1f}' font-size='{pt(7):.1f}' "
+        f"fill='{fcol}'>Note(s): Project plan is preliminary and subject to changes</text>"
+    )
+    s.append(
+        f"<text x='{(SW-M_right)*P:.1f}' y='{(Footer_y+0.17)*P:.1f}' font-size='{pt(7):.1f}' "
+        f"fill='{fcol}' text-anchor='end'>Strictly Confidential</text>"
+    )
+
+    s.append("</svg>")
+    return "".join(s)
