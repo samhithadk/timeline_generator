@@ -1,7 +1,9 @@
 import streamlit as st
 import io
 import os
+import json
 import base64
+from datetime import datetime
 from datetime import date, timedelta
 
 # ── Page config ────────────────────────────────────────────────
@@ -155,6 +157,7 @@ st.markdown("""
         <li><strong>Customise Text</strong> — override the auto-generated subtitle and the section label in the top-left corner.</li>
         <li><strong>Edit Workstreams</strong> — toggle individual rows on/off, rename labels, adjust start/end dates, or add brand new rows to any phase. Use 'Reset to defaults' to undo all changes.</li>
         <li><strong>Live Preview</strong> — the slide preview near the bottom updates automatically as you change dates, themes, or workstreams, so you can see the timeline take shape before downloading.</li>
+        <li><strong>Saved Timelines</strong> — save the current setup under a name and reload it later. Download a config file to keep a copy permanently, since the in-app list is cleared whenever the app restarts.</li>
     </ul>
 </div>
 """, unsafe_allow_html=True)
@@ -289,6 +292,104 @@ def rows_to_custom_template(rows: list, process: str) -> dict:
 
 
 # ── Workstream editor UI ────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════
+# Save / load timeline configurations
+# ══════════════════════════════════════════════════════════════════
+CONFIG_VERSION = 1
+LIBRARY_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "saved_timelines.json"
+)
+
+THEME_LABELS = {"dark": "\U0001F319 Dark", "light": "\u2600\ufe0f Light"}
+
+
+def _row_to_json(r: dict) -> dict:
+    d = dict(r)
+    for k in ("start_date", "end_date"):
+        v = d.get(k)
+        d[k] = v.isoformat() if isinstance(v, date) else None
+    return d
+
+
+def _row_from_json(d: dict) -> dict:
+    r = dict(d)
+    for k in ("start_date", "end_date"):
+        v = r.get(k)
+        r[k] = date.fromisoformat(v) if v else None
+    r.setdefault("is_custom", False)
+    r.setdefault("is_milestone", False)
+    r.setdefault("include", True)
+    return r
+
+
+def build_config(name, close_date, process, theme, subtitle, top_label, rows) -> dict:
+    """Snapshot everything needed to reproduce a timeline."""
+    return {
+        "version":    CONFIG_VERSION,
+        "name":       name,
+        "saved_at":   datetime.now().isoformat(timespec="seconds"),
+        "close_date": close_date.isoformat(),
+        "process":    process,
+        "theme":      theme,
+        "subtitle":   subtitle,
+        "top_label":  top_label,
+        "rows":       [_row_to_json(r) for r in rows],
+    }
+
+
+def parse_config(cfg: dict) -> dict:
+    """Validate + coerce a saved config back into live Python objects."""
+    if not isinstance(cfg, dict):
+        raise ValueError("Config file is not a JSON object.")
+    for field in ("close_date", "process", "rows"):
+        if field not in cfg:
+            raise ValueError(f"Config is missing '{field}'.")
+    process = str(cfg["process"]).lower()
+    if process not in TEMPLATES:
+        raise ValueError(f"Unknown process type '{cfg['process']}'.")
+    theme = str(cfg.get("theme", "dark")).lower()
+    if theme not in ("dark", "light"):
+        theme = "dark"
+    if not isinstance(cfg["rows"], list) or not cfg["rows"]:
+        raise ValueError("Config contains no workstream rows.")
+    return {
+        "name":       cfg.get("name") or "Untitled",
+        "close_date": date.fromisoformat(cfg["close_date"]),
+        "process":    process,
+        "theme":      theme,
+        "subtitle":   cfg.get("subtitle", "") or "",
+        "top_label":  cfg.get("top_label", "") or "[Insert section label here]",
+        "rows":       [_row_from_json(r) for r in cfg["rows"]],
+    }
+
+
+def load_library() -> dict:
+    """Saved timelines, keyed by name. Cached in session for the run."""
+    if "ws_library" not in st.session_state:
+        lib = {}
+        try:
+            if os.path.exists(LIBRARY_PATH):
+                with open(LIBRARY_PATH, "r", encoding="utf-8") as fh:
+                    loaded = json.load(fh)
+                if isinstance(loaded, dict):
+                    lib = loaded
+        except Exception:
+            lib = {}
+        st.session_state["ws_library"] = lib
+    return st.session_state["ws_library"]
+
+
+def persist_library(lib: dict) -> bool:
+    """Write the library to disk. Returns False if the filesystem is read-only."""
+    st.session_state["ws_library"] = lib
+    try:
+        with open(LIBRARY_PATH, "w", encoding="utf-8") as fh:
+            json.dump(lib, fh, indent=2)
+        return True
+    except Exception:
+        return False
+
+
 def purge_ws_widget_keys(process: str, row_ids=None):
     """
     Drop cached widget state for workstream rows.
@@ -467,15 +568,59 @@ def render_ws_editor(process: str, close_date: date):
 
 
 # ══════════════════════════════════════════════════════════════════
+# Apply a pending load BEFORE any widget is created
+# ══════════════════════════════════════════════════════════════════
+# Streamlit ignores a keyed widget's `value` once that widget exists, so a
+# loaded config has to be written into session_state before the widgets on
+# this run are drawn. The Load/Restore buttons therefore only stash the config
+# and rerun; the actual apply happens here.
+_pending = st.session_state.pop("_pending_load", None)
+if _pending is not None:
+    try:
+        _cfg = parse_config(_pending)
+        _p   = _cfg["process"]
+
+        st.session_state["in_close_date"]   = _cfg["close_date"]
+        st.session_state["in_process_type"] = _p.title()
+        st.session_state["in_theme_choice"] = THEME_LABELS[_cfg["theme"]]
+        st.session_state["in_subtitle"]     = _cfg["subtitle"]
+        st.session_state["in_top_label"]    = _cfg["top_label"]
+
+        # Clear cached row widgets so the loaded labels/dates actually show
+        purge_ws_widget_keys(_p)
+        rows_loaded = _cfg["rows"]
+        apply_subnumbers(rows_loaded)
+        st.session_state[ws_state_key(_p)] = rows_loaded
+
+        st.session_state["_flash_ok"] = f"Loaded \u201c{_cfg['name']}\u201d."
+    except Exception as e:
+        st.session_state["_flash_err"] = f"Could not load that timeline: {e}"
+
+# Flash messages from a save/load/delete on the previous run
+_ok  = st.session_state.pop("_flash_ok", None)
+_err = st.session_state.pop("_flash_err", None)
+if _ok:
+    st.success(_ok)
+if _err:
+    st.error(_err)
+
+
+# ══════════════════════════════════════════════════════════════════
 # Main inputs
 # ══════════════════════════════════════════════════════════════════
+# A loaded config may have a close date in the past, which would violate a
+# fixed min_value, so the floor follows whatever is currently selected.
+_cd_now   = st.session_state.get("in_close_date")
+_min_close = min(date.today(), _cd_now) if isinstance(_cd_now, date) else date.today()
+
 col1, col2 = st.columns(2)
 with col1:
     st.markdown("<p class='section-label'>Close Date</p>", unsafe_allow_html=True)
     close_date = st.date_input(
         "Close Date",
         value=date.today() + timedelta(weeks=32),
-        min_value=date.today(),
+        min_value=_min_close,
+        key="in_close_date",
         label_visibility="collapsed",
     )
 with col2:
@@ -484,6 +629,7 @@ with col2:
         "Process Type",
         options=["Standard", "Accelerated"],
         help="Standard: ~8 month process.  Accelerated: ~6 month process.",
+        key="in_process_type",
         label_visibility="collapsed",
     )
 
@@ -492,6 +638,7 @@ theme_choice = st.radio(
     "Theme",
     options=["🌙 Dark", "☀️ Light"],
     horizontal=True,
+    key="in_theme_choice",
     label_visibility="collapsed",
 )
 
@@ -500,6 +647,7 @@ with st.expander("Customise Text (optional)"):
     subtitle = st.text_input(
         "Subtitle",
         placeholder='e.g. "Begin process April 1st, launch to market early June, expected close in November"',
+        key="in_subtitle",
         label_visibility="collapsed",
     )
     st.markdown("<p class='section-label' style='margin-top:1rem'>Section Label (top-left)</p>",
@@ -507,6 +655,7 @@ with st.expander("Customise Text (optional)"):
     top_label = st.text_input(
         "Top label",
         value="3 | Process design and investor discussion",
+        key="in_top_label",
         label_visibility="collapsed",
     )
 
@@ -517,6 +666,112 @@ ensure_ws_state(process_key, close_date)
 
 with st.expander("Edit Workstreams (optional)"):
     render_ws_editor(process_key, close_date)
+
+
+# ── Saved timelines ─────────────────────────────────────────────
+with st.expander("Saved Timelines (optional)"):
+    _library   = load_library()
+    _cur_rows  = st.session_state[ws_state_key(process_key)]
+    _cur_theme = "dark" if "Dark" in theme_choice else "light"
+
+    st.markdown(
+        "<p class='ws-help'>Save the current setup — close date, process, theme, text "
+        "and every workstream edit — so you can pull it back up later.</p>",
+        unsafe_allow_html=True,
+    )
+    st.warning(
+        "Saved timelines live on the app server and are shared with everyone who has "
+        "the password. Streamlit puts the app to sleep when it is idle, and waking it "
+        "clears this list — use **Download** for anything you need to keep.",
+        icon="⚠️",
+    )
+
+    # ── Save ──
+    sc1, sc2 = st.columns([3, 1])
+    _save_name = sc1.text_input(
+        "Name", placeholder="e.g. Project Eyrus — Nov close",
+        key="save_name", label_visibility="collapsed",
+    )
+    if sc2.button("💾 Save", key="btn_save", use_container_width=True):
+        _nm = _save_name.strip()
+        if not _nm:
+            st.session_state["_flash_err"] = "Give the timeline a name before saving."
+        else:
+            _library[_nm] = build_config(
+                _nm, close_date, process_key, _cur_theme,
+                subtitle.strip(), top_label.strip(), _cur_rows,
+            )
+            _written = persist_library(_library)
+            st.session_state["_flash_ok"] = (
+                f"Saved \u201c{_nm}\u201d."
+                if _written else
+                f"Saved \u201c{_nm}\u201d for this session only "
+                f"(the server filesystem is read-only). Download it to keep it."
+            )
+        st.rerun()
+
+    st.markdown("---")
+
+    # ── Load / delete / download ──
+    if _library:
+        _names = sorted(
+            _library.keys(),
+            key=lambda n: _library[n].get("saved_at", ""),
+            reverse=True,
+        )
+
+        def _fmt(n):
+            cfg = _library[n]
+            when = (cfg.get("saved_at", "") or "")[:10]
+            proc = str(cfg.get("process", "")).title()
+            return f"{n}  ·  {proc}  ·  {when}" if when else n
+
+        _sel = st.selectbox(
+            "Saved timelines", _names, format_func=_fmt, key="load_select",
+        )
+
+        lc1, lc2, lc3 = st.columns(3)
+        if lc1.button("📂 Load", key="btn_load", use_container_width=True):
+            st.session_state["_pending_load"] = _library[_sel]
+            st.rerun()
+
+        lc2.download_button(
+            "⬇️ Download",
+            data=json.dumps(_library[_sel], indent=2).encode("utf-8"),
+            file_name=f"timeline_{_sel.replace(' ', '_')[:60]}.json",
+            mime="application/json",
+            key="btn_dl_cfg",
+            use_container_width=True,
+        )
+
+        if lc3.button("🗑 Delete", key="btn_del_cfg", use_container_width=True):
+            _library.pop(_sel, None)
+            persist_library(_library)
+            st.session_state["_flash_ok"] = f"Deleted \u201c{_sel}\u201d."
+            st.rerun()
+    else:
+        st.caption("Nothing saved yet.")
+
+    st.markdown("---")
+
+    # ── Restore from file ──
+    st.markdown("**Restore from a downloaded file**")
+    _up = st.file_uploader(
+        "Config file", type=["json"], key="cfg_upload", label_visibility="collapsed",
+    )
+    if _up is not None:
+        _uid = f"{_up.name}:{_up.size}"
+        # Guard against re-applying the same file on every rerun
+        if st.session_state.get("_last_upload") != _uid:
+            st.session_state["_last_upload"] = _uid
+            try:
+                _incoming = json.loads(_up.getvalue().decode("utf-8"))
+                parse_config(_incoming)          # validate before committing
+                st.session_state["_pending_load"] = _incoming
+                st.rerun()
+            except Exception as e:
+                st.session_state["_flash_err"] = f"That file could not be read: {e}"
+                st.rerun()
 
 
 # ── Live preview ────────────────────────────────────────────────
